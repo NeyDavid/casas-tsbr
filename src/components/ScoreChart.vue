@@ -1,16 +1,43 @@
 <template>
-  <div class="chart-wrapper">
+  <div class="chart-wrapper" ref="wrapperRef">
     <apexchart
       type="bar"
       :height="chartHeight"
       :options="chartOptions"
       :series="series"
     />
+    <div class="logos-overlay" aria-hidden="true">
+      <div
+        v-for="(pos, i) in barPositions"
+        :key="i"
+        class="bar-logo"
+        :style="{
+          left: pos.cx - pos.size / 2 + 'px',
+          top: pos.logoTop + 'px',
+          width: pos.size + 'px',
+          height: pos.size + 'px',
+        }"
+      >
+        <img :src="props.teams[i].logo" :alt="props.teams[i].name" />
+      </div>
+      <div
+        v-for="(pos, i) in barPositions"
+        :key="'score-' + i"
+        class="bar-score"
+        :style="{
+          left: pos.cx + 'px',
+          top: pos.scoreTop + 'px',
+          color: '#ffffff',
+        }"
+      >
+        {{ props.teams[i].score > 0 ? props.teams[i].score.toLocaleString('pt-BR') : '' }}
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 
 const apexchart = VueApexCharts
@@ -22,9 +49,12 @@ const props = defineProps({
   },
 })
 
-const chartHeight = computed(() => {
-  return window.innerWidth < 640 ? 320 : 460
-})
+const wrapperRef = ref(null)
+const barPositions = ref([])
+
+const isMobile = () => window.innerWidth < 640
+
+const chartHeight = computed(() => (isMobile() ? 320 : 460))
 
 const series = computed(() => [
   {
@@ -33,76 +63,52 @@ const series = computed(() => [
   },
 ])
 
-function toSVGCoords(svg, el, localX, localY) {
-  const pt = svg.createSVGPoint()
-  pt.x = localX
-  pt.y = localY
-  const ctm = el.getCTM()
-  if (!ctm) return { x: localX, y: localY }
-  return pt.matrixTransform(ctm)
-}
+function measureBars(chartEl) {
+  if (!wrapperRef.value) return
 
-function injectLogos(chartContext) {
-  const svg = chartContext.el.querySelector('svg')
-  if (!svg) return
-
-  svg.querySelectorAll('.injected-team-logo').forEach((el) => el.remove())
-
-  const bars = chartContext.el.querySelectorAll(
+  const bars = chartEl.querySelectorAll(
     '.apexcharts-bar-series .apexcharts-series path, .apexcharts-bar-series .apexcharts-series rect'
   )
+  if (!bars.length) return
+
+  const wrapperRect = wrapperRef.value.getBoundingClientRect()
+  const mobile = isMobile()
+  const positions = []
 
   bars.forEach((bar, i) => {
-    const team = props.teams[i]
-    if (!team) return
+    if (i >= props.teams.length) return
+    const r = bar.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) return
 
-    const bbox = bar.getBBox()
-    if (bbox.width === 0 && bbox.height === 0) return
+    // coordinates relative to the wrapper div
+    const cx = r.left - wrapperRect.left + r.width / 2
+    const barVisualTop = r.top - wrapperRect.top      // top edge of bar (visually highest)
 
-    // convert bar corners to SVG root coordinates
-    const topLeft = toSVGCoords(svg, bar, bbox.x, bbox.y)
-    const topRight = toSVGCoords(svg, bar, bbox.x + bbox.width, bbox.y)
+    const size = Math.min(Math.max(r.width * 0.65, 24), 52)
 
-    const barTopY = topLeft.y
-    const barCX = (topLeft.x + topRight.x) / 2
-    const barWidthSVG = topRight.x - topLeft.x
-
-    const size = Math.min(Math.max(barWidthSVG * 0.65, 24), 52)
-    const cy = barTopY - size / 2 - 6
-
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    circle.setAttributeNS(null, 'cx', barCX)
-    circle.setAttributeNS(null, 'cy', cy)
-    circle.setAttributeNS(null, 'r', size / 2 + 3)
-    circle.setAttributeNS(null, 'fill', 'rgba(10,14,26,0.7)')
-    circle.setAttributeNS(null, 'class', 'injected-team-logo')
-    svg.appendChild(circle)
-
-    const img = document.createElementNS('http://www.w3.org/2000/svg', 'image')
-    img.setAttributeNS(null, 'href', team.logo)
-    img.setAttributeNS(null, 'x', barCX - size / 2)
-    img.setAttributeNS(null, 'y', cy - size / 2)
-    img.setAttributeNS(null, 'width', size)
-    img.setAttributeNS(null, 'height', size)
-    img.setAttributeNS(null, 'class', 'injected-team-logo')
-    svg.appendChild(img)
-
-    if (team.score > 0) {
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      label.setAttributeNS(null, 'x', barCX)
-      label.setAttributeNS(null, 'y', cy - size / 2 - 10)
-      label.setAttributeNS(null, 'text-anchor', 'middle')
-      label.setAttributeNS(null, 'dominant-baseline', 'auto')
-      label.setAttributeNS(null, 'fill', '#ffffff')
-      label.setAttributeNS(null, 'font-size', '15')
-      label.setAttributeNS(null, 'font-weight', '700')
-      label.setAttributeNS(null, 'font-family', 'Inter, sans-serif')
-      label.setAttributeNS(null, 'filter', 'drop-shadow(0 1px 3px rgba(0,0,0,0.8))')
-      label.setAttributeNS(null, 'class', 'injected-team-logo')
-      label.textContent = team.score.toLocaleString('pt-BR')
-      svg.appendChild(label)
+    let logoTop, scoreTop
+    if (mobile) {
+      // logo inside bar, near the top
+      logoTop = barVisualTop + 6
+      scoreTop = barVisualTop - 22
+    } else {
+      // logo floating above bar
+      logoTop = barVisualTop - size - 8
+      scoreTop = barVisualTop - size - 8 - 22
     }
+
+    positions.push({ cx, barVisualTop, logoTop, scoreTop, size })
   })
+
+  barPositions.value = positions
+}
+
+function onChartReady(chartContext) {
+  nextTick(() => measureBars(chartContext.el))
+}
+
+function onChartUpdated(chartContext) {
+  setTimeout(() => measureBars(chartContext.el), 550)
 }
 
 const chartOptions = computed(() => ({
@@ -118,10 +124,8 @@ const chartOptions = computed(() => ({
       dynamicAnimation: { enabled: true, speed: 500 },
     },
     events: {
-      mounted: (chartContext) => injectLogos(chartContext),
-      updated: (chartContext) => {
-        setTimeout(() => injectLogos(chartContext), 520)
-      },
+      mounted: onChartReady,
+      updated: onChartUpdated,
     },
   },
   plotOptions: {
@@ -150,14 +154,7 @@ const chartOptions = computed(() => ({
   dataLabels: { enabled: false },
   xaxis: {
     categories: props.teams.map((t) => t.name),
-    labels: {
-      style: {
-        colors: '#a0aec0',
-        fontSize: '14px',
-        fontFamily: 'Inter, sans-serif',
-        fontWeight: '600',
-      },
-    },
+    labels: { show: false },
     axisBorder: { show: false },
     axisTicks: { show: false },
   },
@@ -198,5 +195,40 @@ const chartOptions = computed(() => ({
 <style scoped>
 .chart-wrapper {
   width: 100%;
+  position: relative;
+}
+
+.logos-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bar-logo {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(10, 14, 26, 0.55);
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(0);
+}
+
+.bar-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.bar-score {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
 }
 </style>
