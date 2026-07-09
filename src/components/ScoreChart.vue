@@ -33,6 +33,15 @@ const series = computed(() => [
   },
 ])
 
+function toSVGCoords(svg, el, localX, localY) {
+  const pt = svg.createSVGPoint()
+  pt.x = localX
+  pt.y = localY
+  const ctm = el.getCTM()
+  if (!ctm) return { x: localX, y: localY }
+  return pt.matrixTransform(ctm)
+}
+
 function injectLogos(chartContext) {
   const svg = chartContext.el.querySelector('svg')
   if (!svg) return
@@ -50,13 +59,19 @@ function injectLogos(chartContext) {
     const bbox = bar.getBBox()
     if (bbox.width === 0 && bbox.height === 0) return
 
-    const size = Math.min(Math.max(bbox.width * 0.65, 24), 52)
-    const cx = bbox.x + bbox.width / 2
-    // logo centered just above bar top
-    const cy = bbox.y - size / 2 - 6
+    // convert bar corners to SVG root coordinates
+    const topLeft = toSVGCoords(svg, bar, bbox.x, bbox.y)
+    const topRight = toSVGCoords(svg, bar, bbox.x + bbox.width, bbox.y)
+
+    const barTopY = topLeft.y
+    const barCX = (topLeft.x + topRight.x) / 2
+    const barWidthSVG = topRight.x - topLeft.x
+
+    const size = Math.min(Math.max(barWidthSVG * 0.65, 24), 52)
+    const cy = barTopY - size / 2 - 6
 
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    circle.setAttributeNS(null, 'cx', cx)
+    circle.setAttributeNS(null, 'cx', barCX)
     circle.setAttributeNS(null, 'cy', cy)
     circle.setAttributeNS(null, 'r', size / 2 + 3)
     circle.setAttributeNS(null, 'fill', 'rgba(10,14,26,0.7)')
@@ -65,7 +80,7 @@ function injectLogos(chartContext) {
 
     const img = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     img.setAttributeNS(null, 'href', team.logo)
-    img.setAttributeNS(null, 'x', cx - size / 2)
+    img.setAttributeNS(null, 'x', barCX - size / 2)
     img.setAttributeNS(null, 'y', cy - size / 2)
     img.setAttributeNS(null, 'width', size)
     img.setAttributeNS(null, 'height', size)
@@ -74,8 +89,7 @@ function injectLogos(chartContext) {
 
     if (team.score > 0) {
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      label.setAttributeNS(null, 'x', cx)
-      // position score text above the logo circle
+      label.setAttributeNS(null, 'x', barCX)
       label.setAttributeNS(null, 'y', cy - size / 2 - 10)
       label.setAttributeNS(null, 'text-anchor', 'middle')
       label.setAttributeNS(null, 'dominant-baseline', 'auto')
