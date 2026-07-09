@@ -9,7 +9,7 @@
 
     <header class="app-header">
       <div class="header-content">
-        <div class="header-badge">GINCANA</div>
+        <div class="header-badge">ARENA STREET CASAS</div>
         <h1 class="app-title">Placar das Casas</h1>
         <p class="app-subtitle">Acompanhe a pontuação em tempo real</p>
       </div>
@@ -47,24 +47,10 @@
         </div>
       </section>
 
-      <section class="section">
-        <div class="section-label">
-          <button class="toggle-editor-btn" @click="showEditor = !showEditor">
-            <span>{{ showEditor ? '▲ Fechar' : '▼ Abrir' }} Painel de Pontuação</span>
-          </button>
-        </div>
-        <Transition name="slide-fade">
-          <ScoreEditor
-            v-if="showEditor"
-            :teams="teams"
-            @update:teams="updateTeams"
-          />
-        </Transition>
-      </section>
     </main>
 
     <footer class="app-footer">
-      <span>TSBR · Gincana {{ currentYear }}</span>
+      <span>TSBR · BLIND {{ currentYear }}</span>
     </footer>
   </div>
 </template>
@@ -73,27 +59,9 @@
 import { ref, computed } from 'vue'
 import TeamCard from './components/TeamCard.vue'
 import ScoreChart from './components/ScoreChart.vue'
-import ScoreEditor from './components/ScoreEditor.vue'
 import { teams as initialTeams } from './data/teams.js'
 
-const STORAGE_KEY = 'tsbr-gincana-scores'
-
-function loadTeams() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      return initialTeams.map((t) => {
-        const found = parsed.find((p) => p.id === t.id)
-        return found ? { ...t, score: found.score } : t
-      })
-    }
-  } catch {}
-  return initialTeams.map((t) => ({ ...t }))
-}
-
-const teams = ref(loadTeams())
-const showEditor = ref(false)
+const teams = ref(initialTeams.map((t) => ({ ...t })))
 const currentYear = new Date().getFullYear()
 
 const sortedTeams = computed(() =>
@@ -103,16 +71,6 @@ const sortedTeams = computed(() =>
 const maxScore = computed(() =>
   Math.max(...teams.value.map((t) => t.score), 1)
 )
-
-function updateTeams(updatedTeams) {
-  teams.value = updatedTeams
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(updatedTeams.map(({ id, score }) => ({ id, score })))
-    )
-  } catch {}
-}
 </script>
 
 <style>
@@ -318,38 +276,6 @@ body {
   padding: 1.5rem 1rem 1rem;
 }
 
-.toggle-editor-btn {
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px dashed rgba(99, 102, 241, 0.3);
-  color: #a5b4fc;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  padding: 0.5rem 1.2rem;
-  border-radius: 99px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-.toggle-editor-btn:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.6);
-  color: #c7d2fe;
-}
-
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-12px);
-}
 
 .app-footer {
   position: relative;

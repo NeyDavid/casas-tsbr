@@ -33,6 +33,64 @@ const series = computed(() => [
   },
 ])
 
+function injectLogos(chartContext) {
+  const svg = chartContext.el.querySelector('svg')
+  if (!svg) return
+
+  svg.querySelectorAll('.injected-team-logo').forEach((el) => el.remove())
+
+  const bars = chartContext.el.querySelectorAll(
+    '.apexcharts-bar-series .apexcharts-series path, .apexcharts-bar-series .apexcharts-series rect'
+  )
+
+  bars.forEach((bar, i) => {
+    const team = props.teams[i]
+    if (!team) return
+
+    const bbox = bar.getBBox()
+    if (bbox.width === 0 && bbox.height === 0) return
+
+    const size = Math.min(Math.max(bbox.width * 0.65, 24), 52)
+    const cx = bbox.x + bbox.width / 2
+    // logo centered just above bar top
+    const cy = bbox.y - size / 2 - 6
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+    circle.setAttributeNS(null, 'cx', cx)
+    circle.setAttributeNS(null, 'cy', cy)
+    circle.setAttributeNS(null, 'r', size / 2 + 3)
+    circle.setAttributeNS(null, 'fill', 'rgba(10,14,26,0.7)')
+    circle.setAttributeNS(null, 'class', 'injected-team-logo')
+    svg.appendChild(circle)
+
+    const img = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+    img.setAttributeNS(null, 'href', team.logo)
+    img.setAttributeNS(null, 'x', cx - size / 2)
+    img.setAttributeNS(null, 'y', cy - size / 2)
+    img.setAttributeNS(null, 'width', size)
+    img.setAttributeNS(null, 'height', size)
+    img.setAttributeNS(null, 'class', 'injected-team-logo')
+    svg.appendChild(img)
+
+    if (team.score > 0) {
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      label.setAttributeNS(null, 'x', cx)
+      // position score text above the logo circle
+      label.setAttributeNS(null, 'y', cy - size / 2 - 10)
+      label.setAttributeNS(null, 'text-anchor', 'middle')
+      label.setAttributeNS(null, 'dominant-baseline', 'auto')
+      label.setAttributeNS(null, 'fill', '#ffffff')
+      label.setAttributeNS(null, 'font-size', '15')
+      label.setAttributeNS(null, 'font-weight', '700')
+      label.setAttributeNS(null, 'font-family', 'Inter, sans-serif')
+      label.setAttributeNS(null, 'filter', 'drop-shadow(0 1px 3px rgba(0,0,0,0.8))')
+      label.setAttributeNS(null, 'class', 'injected-team-logo')
+      label.textContent = team.score.toLocaleString('pt-BR')
+      svg.appendChild(label)
+    }
+  })
+}
+
 const chartOptions = computed(() => ({
   chart: {
     type: 'bar',
@@ -44,6 +102,12 @@ const chartOptions = computed(() => ({
       speed: 900,
       animateGradually: { enabled: true, delay: 150 },
       dynamicAnimation: { enabled: true, speed: 500 },
+    },
+    events: {
+      mounted: (chartContext) => injectLogos(chartContext),
+      updated: (chartContext) => {
+        setTimeout(() => injectLogos(chartContext), 520)
+      },
     },
   },
   plotOptions: {
@@ -69,25 +133,7 @@ const chartOptions = computed(() => ({
       stops: [0, 100],
     },
   },
-  dataLabels: {
-    enabled: true,
-    formatter: (val) => (val > 0 ? val.toLocaleString('pt-BR') : ''),
-    offsetY: -12,
-    style: {
-      fontSize: '15px',
-      fontFamily: 'Inter, sans-serif',
-      fontWeight: '700',
-      colors: ['#ffffff'],
-    },
-    dropShadow: {
-      enabled: true,
-      top: 1,
-      left: 0,
-      blur: 4,
-      color: '#000',
-      opacity: 0.6,
-    },
-  },
+  dataLabels: { enabled: false },
   xaxis: {
     categories: props.teams.map((t) => t.name),
     labels: {
