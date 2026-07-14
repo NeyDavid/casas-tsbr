@@ -30,7 +30,7 @@ export const teams = [
     secondaryColor: '#4A0E15',
     accentColor: '#D4324A',
     gradient: ['#8B1A2A', '#C0392B'],
-    score: 200,
+    score: 250,
   },
   {
     id: 'tufao',
@@ -40,6 +40,6 @@ export const teams = [
     secondaryColor: '#1A1A1A',
     accentColor: '#FFFFFF',
     gradient: ['#F5C518', '#E6A817'],
-    score: 300,
+    score: 325,
   },
 ]
